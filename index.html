@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>University Application Tracker</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: monospace; font-size: 14px; background: #f5f5f5; color: #111; }
+
+  header { background: #111; color: #fff; padding: 12px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header h1 { font-size: 16px; letter-spacing: 1px; white-space: nowrap; }
+  header input[type="text"] { flex: 1; min-width: 180px; padding: 5px 8px; font-family: monospace; font-size: 13px; border: 1px solid #555; background: #222; color: #eee; }
+  header select { padding: 5px 8px; font-family: monospace; font-size: 13px; border: 1px solid #555; background: #222; color: #eee; }
+  header button { padding: 5px 12px; font-family: monospace; font-size: 13px; cursor: pointer; border: 1px solid #888; background: #333; color: #eee; }
+  header button:hover { background: #555; }
+  #btn-add-toggle { background: #1a5c2e; border-color: #2e8b4a; }
+  #btn-add-toggle:hover { background: #2e8b4a; }
+  #btn-deadline-view { background: #1a3a5c; border-color: #2e6a8b; }
+  #btn-deadline-view.active { background: #2e6a8b; }
+
+  /* ADD FORM */
+  #add-form-panel { display: none; background: #e8e8e8; border-bottom: 2px solid #ccc; padding: 16px 20px; }
+  #add-form-panel.open { display: block; }
+  #add-form-panel h2 { font-size: 14px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+  .form-group { display: flex; flex-direction: column; gap: 3px; }
+  .form-group label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #555; }
+  .form-group input, .form-group select, .form-group textarea {
+    padding: 5px 7px; font-family: monospace; font-size: 13px;
+    border: 1px solid #bbb; background: #fff;
+  }
+  .form-group textarea { resize: vertical; min-height: 60px; }
+  .form-actions { margin-top: 12px; display: flex; gap: 8px; }
+  .form-actions button { padding: 6px 16px; font-family: monospace; font-size: 13px; cursor: pointer; border: 1px solid #888; }
+  #btn-save { background: #1a5c2e; color: #fff; border-color: #2e8b4a; }
+  #btn-cancel { background: #fff; }
+
+  /* VIEWS */
+  #main { padding: 16px 20px; }
+  #stats-bar { display: flex; gap: 20px; margin-bottom: 14px; font-size: 12px; color: #555; }
+  #stats-bar span b { color: #111; }
+
+  /* TABLE VIEW */
+  #table-view table { width: 100%; border-collapse: collapse; background: #fff; }
+  #table-view th { background: #222; color: #eee; text-align: left; padding: 7px 10px; font-size: 12px; letter-spacing: 0.5px; cursor: pointer; white-space: nowrap; }
+  #table-view th:hover { background: #444; }
+  #table-view th.sorted-asc::after { content: ' ↑'; }
+  #table-view th.sorted-desc::after { content: ' ↓'; }
+  #table-view td { padding: 6px 10px; border-bottom: 1px solid #eee; vertical-align: top; }
+  #table-view tr:hover td { background: #f0f0f0; }
+  #table-view tr.overdue td { background: #fff0f0; }
+  #table-view tr.soon td { background: #fffbea; }
+  .badge { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 2px; }
+  .badge-eastern { background: #dce8ff; color: #1a3a6e; }
+  .badge-central { background: #ddf0dd; color: #1a4a1a; }
+  .badge-mountain { background: #fde8d0; color: #6e2e0a; }
+  .badge-pacific { background: #e8ddf0; color: #3a1a6e; }
+  .deadline-cell { white-space: nowrap; }
+  .deadline-cell .days-left { font-size: 11px; color: #888; }
+  .deadline-cell .days-left.red { color: #c00; font-weight: bold; }
+  .deadline-cell .days-left.orange { color: #e07000; font-weight: bold; }
+  .deadline-cell .days-left.green { color: #1a7a1a; }
+  .action-btn { background: none; border: none; cursor: pointer; font-size: 12px; color: #888; padding: 0 3px; }
+  .action-btn:hover { color: #111; }
+  .portal-link { color: #1a5c8b; text-decoration: none; font-size: 12px; }
+  .portal-link:hover { text-decoration: underline; }
+  .status-select { font-family: monospace; font-size: 12px; border: 1px solid #ddd; padding: 2px 4px; background: #fff; cursor: pointer; }
+
+  /* DEADLINE VIEW */
+  #deadline-view { display: none; }
+  #deadline-view.active { display: block; }
+  #table-view.hidden { display: none; }
+  .deadline-month { margin-bottom: 20px; }
+  .deadline-month h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; padding: 6px 10px; background: #222; color: #eee; margin-bottom: 2px; }
+  .deadline-item { display: flex; align-items: flex-start; gap: 12px; padding: 7px 10px; background: #fff; border-bottom: 1px solid #eee; }
+  .deadline-item:hover { background: #f5f5f5; }
+  .deadline-date { font-weight: bold; font-size: 13px; min-width: 80px; }
+  .deadline-info { flex: 1; }
+  .deadline-info .uni-name { font-weight: bold; }
+  .deadline-info .deadline-type { font-size: 11px; color: #666; }
+  .deadline-item.overdue { background: #fff5f5; }
+  .deadline-item.soon { background: #fffdf0; }
+
+  /* NOTES MODAL */
+  #notes-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; }
+  #notes-modal.open { display: flex; }
+  #notes-box { background: #fff; padding: 20px; width: 500px; max-width: 95vw; }
+  #notes-box h3 { margin-bottom: 10px; font-size: 14px; }
+  #notes-box textarea { width: 100%; min-height: 120px; font-family: monospace; font-size: 13px; border: 1px solid #bbb; padding: 8px; resize: vertical; }
+  #notes-box-actions { margin-top: 10px; display: flex; gap: 8px; }
+  #notes-box-actions button { padding: 5px 14px; font-family: monospace; font-size: 13px; cursor: pointer; border: 1px solid #888; }
+  #btn-notes-save { background: #1a5c2e; color: #fff; border-color: #2e8b4a; }
+
+  .empty-msg { padding: 20px; text-align: center; color: #888; background: #fff; }
+  #export-btn { padding: 5px 12px; font-family: monospace; font-size: 13px; cursor: pointer; border: 1px solid #888; background: #444; color: #eee; }
+  #export-btn:hover { background: #666; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📋 UNI TRACKER</h1>
+  <input type="text" id="search" placeholder="Search university, state, contact...">
+  <select id="filter-region">
+    <option value="">All Regions</option>
+    <option value="Eastern">Eastern</option>
+    <option value="Central">Central</option>
+    <option value="Mountain">Mountain</option>
+    <option value="Pacific">Pacific</option>
+  </select>
+  <select id="filter-status">
+    <option value="">All Status</option>
+    <option value="Not Started">Not Started</option>
+    <option value="In Progress">In Progress</option>
+    <option value="Submitted">Submitted</option>
+    <option value="Accepted">Accepted</option>
+    <option value="Rejected">Rejected</option>
+    <option value="Waitlisted">Waitlisted</option>
+  </select>
+  <button id="btn-deadline-view">📅 Deadline View</button>
+  <button id="btn-add-toggle">+ Add University</button>
+  <button id="export-btn">⬇ Export JSON</button>
+</header>
+
+<!-- ADD FORM -->
+<div id="add-form-panel">
+  <h2>Add / Edit University</h2>
+  <div class="form-grid">
+    <div class="form-group"><label>University Name *</label><input type="text" id="f-name" placeholder="e.g. Notre Dame"></div>
+    <div class="form-group"><label>State</label><input type="text" id="f-state" placeholder="e.g. Indiana"></div>
+    <div class="form-group"><label>Region</label>
+      <select id="f-region">
+        <option value="Eastern">Eastern</option>
+        <option value="Central">Central</option>
+        <option value="Mountain">Mountain</option>
+        <option value="Pacific">Pacific</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Portal URL</label><input type="text" id="f-portal" placeholder="https://..."></div>
+    <div class="form-group"><label>Fall Deadline (Priority)</label><input type="date" id="f-fall-priority"></div>
+    <div class="form-group"><label>Fall Deadline (Final)</label><input type="date" id="f-fall-final"></div>
+    <div class="form-group"><label>Spring Deadline</label><input type="date" id="f-spring"></div>
+    <div class="form-group"><label>Status</label>
+      <select id="f-status">
+        <option>Not Started</option>
+        <option>In Progress</option>
+        <option>Submitted</option>
+        <option>Accepted</option>
+        <option>Rejected</option>
+        <option>Waitlisted</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Primary Contact Email</label><input type="text" id="f-contact" placeholder="grad@university.edu"></div>
+    <div class="form-group"><label>Contact Name / Role</label><input type="text" id="f-contact-name" placeholder="e.g. Dr. Smith, DGS"></div>
+    <div class="form-group" style="grid-column: span 2;"><label>Notes</label><textarea id="f-notes" placeholder="Contacts, requirements, reminders..."></textarea></div>
+  </div>
+  <div class="form-actions">
+    <button id="btn-save">Save</button>
+    <button id="btn-cancel">Cancel</button>
+    <span id="edit-indicator" style="font-size:12px;color:#888;align-self:center;"></span>
+  </div>
+</div>
+
+<div id="main">
+  <div id="stats-bar">
+    <span>Total: <b id="stat-total">0</b></span>
+    <span>Submitted: <b id="stat-submitted">0</b></span>
+    <span>In Progress: <b id="stat-inprogress">0</b></span>
+    <span>Upcoming (30d): <b id="stat-upcoming">0</b></span>
+  </div>
+
+  <!-- TABLE VIEW -->
+  <div id="table-view">
+    <table>
+      <thead>
+        <tr>
+          <th data-col="name">University</th>
+          <th data-col="state">State</th>
+          <th data-col="region">Region</th>
+          <th data-col="fallPriority">Fall Priority</th>
+          <th data-col="fallFinal">Fall Final</th>
+          <th data-col="spring">Spring</th>
+          <th data-col="status">Status</th>
+          <th>Contact</th>
+          <th>Portal</th>
+          <th>Notes</th>
+          <th>Act</th>
+        </tr>
+      </thead>
+      <tbody id="table-body"></tbody>
+    </table>
+    <div id="table-empty" class="empty-msg" style="display:none;">No universities match your filters.</div>
+  </div>
+
+  <!-- DEADLINE VIEW -->
+  <div id="deadline-view">
+    <div id="deadline-content"></div>
+  </div>
+</div>
+
+<!-- NOTES MODAL -->
+<div id="notes-modal">
+  <div id="notes-box">
+    <h3 id="notes-title">Notes</h3>
+    <textarea id="notes-textarea"></textarea>
+    <div id="notes-box-actions">
+      <button id="btn-notes-save">Save</button>
+      <button id="btn-notes-cancel">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- DATA ----
+const STORAGE_KEY = 'uni_tracker_v1';
+let universities = [];
+let editingId = null;
+let sortCol = 'fallPriority';
+let sortDir = 1;
+let notesTargetId = null;
+let deadlineViewActive = false;
+
+// Preload from PDF data
+const SEED_DATA = [
+  { id: uid(), name: 'Florida Polytechnic University', state: 'Florida', region: 'Eastern', portal: 'https://flpoly.my.site.com/Apply/s/login/', fallPriority: '', fallFinal: '', spring: '', status: 'Not Started', contact: 'ogs@floridapoly.edu', contactName: 'Emily Lowers (Graduate Coord)', notes: 'CS Dept Admin: tthomas@floridapoly.edu\nAsst Chair: Dr. Doga Demirel ddemirel@floridapoly.edu\nAdmissions: admissions@floridapoly.edu' },
+  { id: uid(), name: 'University of Notre Dame', state: 'Indiana', region: 'Eastern', portal: 'https://gradconnect.nd.edu/apply/', fallPriority: '2025-12-15', fallFinal: '2025-12-15', spring: '2025-10-15', status: 'Not Started', contact: 'cse-grad-info@nd.edu', contactName: 'Prof. Tim Weninger (DGS)', notes: 'Director of Graduate Studies: tweninge@nd.edu\nGrad School Admissions: gradapp@nd.edu' },
+  { id: uid(), name: 'Oakland University', state: 'Michigan', region: 'Eastern', portal: 'https://gradapply.oakland.edu/account/login', fallPriority: '2026-05-01', fallFinal: '2026-07-15', spring: '2026-09-01', status: 'Not Started', contact: 'gradteam2@oakland.edu', contactName: 'Dept Chair: Dr. Guangzhi Qu', notes: 'Int\'l Fall: May 1 | Domestic Fall: Jul 15\nInt\'l Winter: Sep 1 | Domestic: Nov 15\nCSE Dept: (248) 370-2200\nAdmin: sherryrank@oakland.edu, krussell@oakland.edu\nSECS Advising: secsadvising@oakland.edu' },
+  { id: uid(), name: 'Michigan State University', state: 'Michigan', region: 'Eastern', portal: 'https://explore.msu.edu/apply', fallPriority: '2026-01-15', fallFinal: '2026-01-15', spring: '', status: 'Not Started', contact: 'CSE.graduate.students@msu.edu', contactName: 'Graduate Coord (mattis20@msu.edu)', notes: 'Phone: (517) 355-4198\nAssoc Dir of Grad Studies: sandeep@msu.edu\nStaff Office: staff@cse.msu.edu | (517) 353-3148' },
+  { id: uid(), name: 'Morgan State University', state: 'Maryland', region: 'Eastern', portal: 'https://morgan.elluciancrmrecruit.com/ApplyGRAD/Account/Login', fallPriority: '2026-04-01', fallFinal: '2026-04-01', spring: '2026-11-01', status: 'Not Started', contact: 'gradapply@morgan.edu', contactName: 'Dr. Guobin Xu (GPD)', notes: 'GPD CS: guobin.xu@morgan.edu\nDept Chair: Shuangbao.Wang@morgan.edu\nIntl: international.affairs@morgan.edu\nFall F-1 int\'l: Apr 1 | Spring: Nov 1' },
+  { id: uid(), name: 'New Jersey Institute of Technology', state: 'New Jersey', region: 'Eastern', portal: 'https://connect.njit.edu/apply', fallPriority: '2025-12-15', fallFinal: '2025-12-15', spring: '2025-10-15', status: 'Not Started', contact: '', contactName: '', notes: 'Fall: Dec 15 | Spring: Oct 15' },
+  { id: uid(), name: 'Stevens Institute of Technology', state: 'New Jersey', region: 'Eastern', portal: 'https://gradadmissions.stevens.edu/apply', fallPriority: '2026-01-15', fallFinal: '2026-02-01', spring: '2026-09-01', status: 'Not Started', contact: '', contactName: '', notes: 'Fall Priority: Jan 15 | Fall Final: ~Feb | Spring: Sep 1' },
+  { id: uid(), name: 'UNC Greensboro', state: 'North Carolina', region: 'Eastern', portal: 'https://gradapply.uncg.edu/portal/manage-application', fallPriority: '2026-02-01', fallFinal: '2026-04-01', spring: '', status: 'Not Started', contact: '', contactName: '', notes: 'Fee waiver NOT available\nFall Priority (funding): Feb 1 | Fall Final: Apr 1' },
+  { id: uid(), name: 'UNC Charlotte', state: 'North Carolina', region: 'Eastern', portal: 'https://gradapp.charlotte.edu/apply', fallPriority: '2026-02-01', fallFinal: '2026-08-01', spring: '2026-09-01', status: 'Not Started', contact: '', contactName: '', notes: 'Fall Priority (funding): Feb 1 | Fall Final: Aug 1 (Int\'l: apply by Mar 1)\nSpring Priority: Sep | Spring Final: Dec 1' },
+  { id: uid(), name: 'Bowling Green State University', state: 'Ohio', region: 'Eastern', portal: 'https://gradapply.bgsu.edu/apply', fallPriority: '2026-01-15', fallFinal: '2026-06-19', spring: '2026-10-15', status: 'Not Started', contact: '', contactName: '', notes: 'Fall Priority (funding): Jan 15 | Standard: Mar 1 | Final (visa): Jun 19\nSpring Final: Oct 15 | Summer: Mar 13' },
+  { id: uid(), name: 'Clemson University', state: 'South Carolina', region: 'Eastern', portal: 'https://www.clemson.edu/admissions/graduate-admissions/apply/', fallPriority: '2026-01-01', fallFinal: '2026-03-15', spring: '2025-09-15', status: 'Not Started', contact: '', contactName: '', notes: 'Fall Priority: Jan 1 | Fall Final: Mar 15 | Spring: Sep 15' },
+  { id: uid(), name: 'Auburn University', state: 'Alabama', region: 'Central', portal: 'https://applygrad.auburn.edu/account/login', fallPriority: '2026-01-15', fallFinal: '2026-01-15', spring: '2026-08-15', status: 'Not Started', contact: '', contactName: '', notes: 'PhD program\nFall: Jan 15 | Spring: Aug 15' },
+  { id: uid(), name: 'University of Alabama in Huntsville', state: 'Alabama', region: 'Central', portal: 'https://admissions.uah.edu/apply/', fallPriority: '2025-12-15', fallFinal: '2026-07-31', spring: '2026-09-01', status: 'Not Started', contact: '', contactName: '', notes: 'Fall 2026: Jul 31 | Spring 2027: Dec 15 | Summer: Mar 15\nFunding Priority Fall: Dec 15, 2025 | Spring: early Sep | Summer: Dec 15 2025' },
+  { id: uid(), name: 'Eastern Illinois University', state: 'Illinois', region: 'Central', portal: 'https://www.eiu.edu/myeiu/index.php', fallPriority: '', fallFinal: '', spring: '', status: 'Not Started', contact: '', contactName: '', notes: 'Rolling basis' },
+  { id: uid(), name: 'Wichita State University', state: 'Kansas', region: 'Central', portal: 'https://slate.wichita.edu/apply/', fallPriority: '2026-03-31', fallFinal: '2026-04-30', spring: '2026-08-31', status: 'Not Started', contact: '', contactName: '', notes: 'Fall Priority: Mar 1 (extended Mar 31 for 2026) | Secondary: Apr 30 | PhD int\'l final: Apr 1\nSpring Priority: Aug 31 | Secondary: Sep 30 | PhD int\'l: Aug 1' },
+  { id: uid(), name: 'University of Kansas', state: 'Kansas', region: 'Central', portal: '', fallPriority: '2025-12-15', fallFinal: '2026-03-01', spring: '2026-09-30', status: 'Not Started', contact: '', contactName: '', notes: 'Fall Priority (funding): Dec 15 | Final: Mar 1\nSpring Priority: Sep 30 | Final: Oct 1' },
+  { id: uid(), name: 'Northwest Missouri State University', state: 'Missouri', region: 'Central', portal: 'https://grad.apply.nwmissouri.edu/', fallPriority: '', fallFinal: '', spring: '', status: 'Not Started', contact: '', contactName: '', notes: 'Rolling basis' },
+  { id: uid(), name: 'University of Missouri Kansas City', state: 'Missouri', region: 'Central', portal: 'https://futureroo.umkc.edu/apply', fallPriority: '2025-12-15', fallFinal: '2026-03-01', spring: '2026-07-01', status: 'Not Started', contact: '', contactName: '', notes: 'PhD: Fall Mar 1 (Suggested) | Funding priority often Dec 15 | Spring: Jul 1\nMS Fall Final: Jun 15 | MS Fall Priority (funding): Mar 1 | MS Spring Final: Dec 1, Priority: Oct 15' },
+  { id: uid(), name: 'Arizona State University', state: 'Arizona', region: 'Mountain', portal: 'https://webapp4.asu.edu/dgsadmissions/Index.jsp', fallPriority: '', fallFinal: '', spring: '', status: 'Not Started', contact: '', contactName: '', notes: '' },
+  { id: uid(), name: 'University of Arizona', state: 'Arizona', region: 'Mountain', portal: 'https://apply.grad.arizona.edu/users/login', fallPriority: '', fallFinal: '', spring: '', status: 'Not Started', contact: '', contactName: '', notes: '' },
+  { id: uid(), name: 'Montana State University', state: 'Montana', region: 'Mountain', portal: 'https://www.applyweb.com/msug/index.ftl', fallPriority: '', fallFinal: '', spring: '', status: 'Not Started', contact: 'socinfo@montana.edu', contactName: 'Shane Blanchard (Grad Coord)', notes: 'CS housed in Gianforte School of Computing\nPhone: (406) 994-4780\nCoord email: shaniah.blanchard@montana.edu | Office: 357 Barnard Hall' },
+  { id: uid(), name: 'University of Utah', state: 'Utah', region: 'Mountain', portal: 'https://futureu.admissions.utah.edu/apply', fallPriority: '', fallFinal: '', spring: '', status: 'Not Started', contact: 'gradadmission@cs.utah.edu', contactName: 'Grad Advisors', notes: 'Grad student coordinator: grad-advisors@cs.utah.edu\ndgs@cs.utah.edu (for current students only, not admissions)' },
+  { id: uid(), name: 'Oregon State University', state: 'Oregon', region: 'Pacific', portal: '', fallPriority: '', fallFinal: '', spring: '', status: 'Not Started', contact: '', contactName: '', notes: '' },
+  { id: uid(), name: 'Portland State University', state: 'Oregon', region: 'Pacific', portal: 'https://sso.pdx.edu/idp/profile/SAML2/Redirect/SSO', fallPriority: '', fallFinal: '', spring: '', status: 'Not Started', contact: 'gccs@pdx.edu', contactName: 'Ella Barrett (Grad Advisor)', notes: 'Grad Advisor: ebozigar@pdx.edu\nCS Main Office: csoffice@pdx.edu\nGrad School Admissions: gradschool@pdx.edu' },
+];
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+function load() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) {
+    try { universities = JSON.parse(raw); } catch { universities = [...SEED_DATA]; save(); }
+  } else {
+    universities = SEED_DATA.map(u => ({...u, id: uid()}));
+    save();
+  }
+}
+
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(universities)); }
+
+// ---- RENDER ----
+function daysLeft(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr); const now = new Date();
+  now.setHours(0,0,0,0); d.setHours(0,0,0,0);
+  return Math.round((d - now) / 86400000);
+}
+
+function fmtDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'2-digit'});
+}
+
+function deadlineCellHTML(dateStr) {
+  if (!dateStr) return '<span style="color:#ccc">—</span>';
+  const dl = daysLeft(dateStr);
+  let cls = 'green', label = `${dl}d left`;
+  if (dl < 0) { cls = ''; label = `${Math.abs(dl)}d ago`; }
+  else if (dl <= 14) { cls = 'red'; label = `${dl}d left!`; }
+  else if (dl <= 45) { cls = 'orange'; label = `${dl}d left`; }
+  return `<div class="deadline-cell">${fmtDate(dateStr)}<br><span class="days-left ${cls}">${label}</span></div>`;
+}
+
+function rowClass(u) {
+  const dates = [u.fallPriority, u.fallFinal, u.spring].filter(Boolean);
+  const mins = dates.map(daysLeft).filter(d => d !== null);
+  if (!mins.length) return '';
+  const m = Math.min(...mins);
+  if (m < 0) return 'overdue';
+  if (m <= 30) return 'soon';
+  return '';
+}
+
+function getFiltered() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const region = document.getElementById('filter-region').value;
+  const status = document.getElementById('filter-status').value;
+  return universities.filter(u => {
+    const text = `${u.name} ${u.state} ${u.contact} ${u.contactName} ${u.notes}`.toLowerCase();
+    return (!q || text.includes(q)) &&
+           (!region || u.region === region) &&
+           (!status || u.status === status);
+  });
+}
+
+function getSorted(list) {
+  return [...list].sort((a, b) => {
+    let av = a[sortCol] || '', bv = b[sortCol] || '';
+    if (!av && bv) return 1;
+    if (av && !bv) return -1;
+    if (!av && !bv) return 0;
+    return av < bv ? -sortDir : av > bv ? sortDir : 0;
+  });
+}
+
+function renderTable() {
+  const filtered = getSorted(getFiltered());
+  const tbody = document.getElementById('table-body');
+  tbody.innerHTML = '';
+  document.getElementById('table-empty').style.display = filtered.length ? 'none' : '';
+  filtered.forEach(u => {
+    const tr = document.createElement('tr');
+    tr.className = rowClass(u);
+    tr.innerHTML = `
+      <td><b>${u.name}</b></td>
+      <td>${u.state || ''}</td>
+      <td><span class="badge badge-${(u.region||'').toLowerCase()}">${u.region || ''}</span></td>
+      <td>${deadlineCellHTML(u.fallPriority)}</td>
+      <td>${deadlineCellHTML(u.fallFinal)}</td>
+      <td>${deadlineCellHTML(u.spring)}</td>
+      <td><select class="status-select" data-id="${u.id}">${['Not Started','In Progress','Submitted','Accepted','Rejected','Waitlisted'].map(s=>`<option${u.status===s?' selected':''}>${s}</option>`).join('')}</select></td>
+      <td style="font-size:12px;">${u.contact ? `<a href="mailto:${u.contact}" style="color:#1a5c8b;">${u.contact}</a>` : ''}<br><span style="color:#888">${u.contactName||''}</span></td>
+      <td>${u.portal ? `<a class="portal-link" href="${u.portal}" target="_blank">Open ↗</a>` : ''}</td>
+      <td><button class="action-btn" title="Notes" data-notes="${u.id}">📝${u.notes ? '●' : ''}</button></td>
+      <td>
+        <button class="action-btn" title="Edit" data-edit="${u.id}">✏️</button>
+        <button class="action-btn" title="Delete" data-del="${u.id}" style="color:#c00;">🗑</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+
+  // stats
+  const all = universities;
+  document.getElementById('stat-total').textContent = all.length;
+  document.getElementById('stat-submitted').textContent = all.filter(u=>u.status==='Submitted'||u.status==='Accepted').length;
+  document.getElementById('stat-inprogress').textContent = all.filter(u=>u.status==='In Progress').length;
+  const upcoming30 = all.filter(u => {
+    const dates = [u.fallPriority, u.fallFinal, u.spring].filter(Boolean);
+    return dates.some(d => { const dl = daysLeft(d); return dl >= 0 && dl <= 30; });
+  }).length;
+  document.getElementById('stat-upcoming').textContent = upcoming30;
+}
+
+function renderDeadlines() {
+  const filtered = getFiltered();
+  // Collect all deadlines
+  const entries = [];
+  filtered.forEach(u => {
+    if (u.fallPriority) entries.push({ date: u.fallPriority, uni: u.name, region: u.region, type: 'Fall Priority', status: u.status });
+    if (u.fallFinal && u.fallFinal !== u.fallPriority) entries.push({ date: u.fallFinal, uni: u.name, region: u.region, type: 'Fall Final', status: u.status });
+    if (u.spring) entries.push({ date: u.spring, uni: u.name, region: u.region, type: 'Spring', status: u.status });
+  });
+  entries.sort((a, b) => a.date.localeCompare(b.date));
+
+  // Group by month
+  const groups = {};
+  entries.forEach(e => {
+    const key = e.date.slice(0, 7);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(e);
+  });
+
+  const dc = document.getElementById('deadline-content');
+  dc.innerHTML = '';
+  if (!Object.keys(groups).length) { dc.innerHTML = '<div class="empty-msg">No deadlines found.</div>'; return; }
+
+  for (const [month, items] of Object.entries(groups)) {
+    const d = new Date(month + '-01');
+    const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const div = document.createElement('div');
+    div.className = 'deadline-month';
+    div.innerHTML = `<h3>${label}</h3>` + items.map(item => {
+      const dl = daysLeft(item.date);
+      let cls = dl < 0 ? 'overdue' : dl <= 30 ? 'soon' : '';
+      return `<div class="deadline-item ${cls}">
+        <div class="deadline-date">${fmtDate(item.date)}</div>
+        <div class="deadline-info">
+          <span class="uni-name">${item.uni}</span>
+          <span class="badge badge-${(item.region||'').toLowerCase()}" style="margin-left:6px;">${item.region||''}</span><br>
+          <span class="deadline-type">${item.type} · ${item.status}</span>
+        </div>
+        <div style="font-size:11px;color:${dl<0?'#c00':dl<=14?'#e07000':'#888'};white-space:nowrap;">${dl<0?`${Math.abs(dl)}d ago`:dl===0?'Today!':dl+'d left'}</div>
+      </div>`;
+    }).join('');
+    dc.appendChild(div);
+  }
+}
+
+function render() {
+  if (deadlineViewActive) { renderDeadlines(); }
+  else { renderTable(); }
+}
+
+// ---- SORT HEADERS ----
+document.querySelectorAll('#table-view th[data-col]').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (sortCol === col) sortDir *= -1;
+    else { sortCol = col; sortDir = 1; }
+    document.querySelectorAll('#table-view th').forEach(t => t.classList.remove('sorted-asc','sorted-desc'));
+    th.classList.add(sortDir === 1 ? 'sorted-asc' : 'sorted-desc');
+    render();
+  });
+});
+
+// ---- FILTERS ----
+document.getElementById('search').addEventListener('input', render);
+document.getElementById('filter-region').addEventListener('change', render);
+document.getElementById('filter-status').addEventListener('change', render);
+
+// ---- DEADLINE TOGGLE ----
+document.getElementById('btn-deadline-view').addEventListener('click', () => {
+  deadlineViewActive = !deadlineViewActive;
+  document.getElementById('btn-deadline-view').classList.toggle('active', deadlineViewActive);
+  document.getElementById('table-view').classList.toggle('hidden', deadlineViewActive);
+  document.getElementById('deadline-view').classList.toggle('active', deadlineViewActive);
+  render();
+});
+
+// ---- ADD FORM ----
+document.getElementById('btn-add-toggle').addEventListener('click', () => {
+  editingId = null;
+  clearForm();
+  document.getElementById('edit-indicator').textContent = '';
+  document.getElementById('add-form-panel').classList.toggle('open');
+});
+
+document.getElementById('btn-cancel').addEventListener('click', () => {
+  document.getElementById('add-form-panel').classList.remove('open');
+  editingId = null;
+});
+
+function clearForm() {
+  ['f-name','f-state','f-portal','f-contact','f-contact-name','f-notes','f-fall-priority','f-fall-final','f-spring'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('f-region').value = 'Eastern';
+  document.getElementById('f-status').value = 'Not Started';
+}
+
+document.getElementById('btn-save').addEventListener('click', () => {
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) { alert('University name is required.'); return; }
+  const entry = {
+    id: editingId || uid(),
+    name,
+    state: document.getElementById('f-state').value.trim(),
+    region: document.getElementById('f-region').value,
+    portal: document.getElementById('f-portal').value.trim(),
+    fallPriority: document.getElementById('f-fall-priority').value,
+    fallFinal: document.getElementById('f-fall-final').value,
+    spring: document.getElementById('f-spring').value,
+    status: document.getElementById('f-status').value,
+    contact: document.getElementById('f-contact').value.trim(),
+    contactName: document.getElementById('f-contact-name').value.trim(),
+    notes: document.getElementById('f-notes').value.trim(),
+  };
+  if (editingId) {
+    const i = universities.findIndex(u => u.id === editingId);
+    if (i !== -1) universities[i] = entry;
+  } else {
+    universities.push(entry);
+  }
+  save(); render();
+  document.getElementById('add-form-panel').classList.remove('open');
+  editingId = null;
+});
+
+// ---- TABLE ACTIONS (delegation) ----
+document.getElementById('table-body').addEventListener('click', e => {
+  const editBtn = e.target.closest('[data-edit]');
+  const delBtn = e.target.closest('[data-del]');
+  const notesBtn = e.target.closest('[data-notes]');
+  if (editBtn) {
+    const u = universities.find(u => u.id === editBtn.dataset.edit);
+    if (!u) return;
+    editingId = u.id;
+    document.getElementById('f-name').value = u.name;
+    document.getElementById('f-state').value = u.state;
+    document.getElementById('f-region').value = u.region;
+    document.getElementById('f-portal').value = u.portal;
+    document.getElementById('f-fall-priority').value = u.fallPriority;
+    document.getElementById('f-fall-final').value = u.fallFinal;
+    document.getElementById('f-spring').value = u.spring;
+    document.getElementById('f-status').value = u.status;
+    document.getElementById('f-contact').value = u.contact;
+    document.getElementById('f-contact-name').value = u.contactName;
+    document.getElementById('f-notes').value = u.notes;
+    document.getElementById('edit-indicator').textContent = `Editing: ${u.name}`;
+    document.getElementById('add-form-panel').classList.add('open');
+    document.getElementById('add-form-panel').scrollIntoView({behavior:'smooth'});
+  }
+  if (delBtn) {
+    const u = universities.find(u => u.id === delBtn.dataset.del);
+    if (u && confirm(`Delete "${u.name}"?`)) {
+      universities = universities.filter(x => x.id !== u.id);
+      save(); render();
+    }
+  }
+  if (notesBtn) {
+    const u = universities.find(u => u.id === notesBtn.dataset.notes);
+    if (!u) return;
+    notesTargetId = u.id;
+    document.getElementById('notes-title').textContent = `Notes — ${u.name}`;
+    document.getElementById('notes-textarea').value = u.notes || '';
+    document.getElementById('notes-modal').classList.add('open');
+  }
+});
+
+document.getElementById('table-body').addEventListener('change', e => {
+  const sel = e.target.closest('.status-select');
+  if (sel) {
+    const u = universities.find(u => u.id === sel.dataset.id);
+    if (u) { u.status = sel.value; save(); render(); }
+  }
+});
+
+// ---- NOTES MODAL ----
+document.getElementById('btn-notes-save').addEventListener('click', () => {
+  const u = universities.find(u => u.id === notesTargetId);
+  if (u) { u.notes = document.getElementById('notes-textarea').value; save(); render(); }
+  document.getElementById('notes-modal').classList.remove('open');
+});
+document.getElementById('btn-notes-cancel').addEventListener('click', () => {
+  document.getElementById('notes-modal').classList.remove('open');
+});
+document.getElementById('notes-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('notes-modal'))
+    document.getElementById('notes-modal').classList.remove('open');
+});
+
+// ---- EXPORT ----
+document.getElementById('export-btn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(universities, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'uni_tracker_export.json'; a.click();
+});
+
+// ---- INIT ----
+load();
+render();
+</script>
+</body>
+</html>
