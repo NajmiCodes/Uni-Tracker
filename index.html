@@ -109,6 +109,9 @@
     <option value="Mountain">Mountain</option>
     <option value="Pacific">Pacific</option>
   </select>
+  <select id="filter-state">
+    <option value="">All States</option>
+  </select>
   <select id="filter-status">
     <option value="">All Status</option>
     <option value="Not Started">Not Started</option>
@@ -151,6 +154,7 @@
         <option>Waitlisted</option>
       </select>
     </div>
+    <div class="form-group"><label>Application Fee ($)</label><input type="number" id="f-appfee" placeholder="e.g. 75" min="0"></div>
     <div class="form-group"><label>Primary Contact Email</label><input type="text" id="f-contact" placeholder="grad@university.edu"></div>
     <div class="form-group"><label>Contact Name / Role</label><input type="text" id="f-contact-name" placeholder="e.g. Dr. Smith, DGS"></div>
     <div class="form-group" style="grid-column: span 2;"><label>Notes</label><textarea id="f-notes" placeholder="Contacts, requirements, reminders..."></textarea></div>
@@ -182,6 +186,7 @@
           <th data-col="fallFinal">Fall Final</th>
           <th data-col="spring">Spring</th>
           <th data-col="status">Status</th>
+          <th data-col="appFee">Fee ($)</th>
           <th>Contact</th>
           <th>Portal</th>
           <th>Notes</th>
@@ -300,13 +305,23 @@ function rowClass(u) {
 function getFiltered() {
   const q = document.getElementById('search').value.toLowerCase();
   const region = document.getElementById('filter-region').value;
+  const state = document.getElementById('filter-state').value;
   const status = document.getElementById('filter-status').value;
   return universities.filter(u => {
     const text = `${u.name} ${u.state} ${u.contact} ${u.contactName} ${u.notes}`.toLowerCase();
     return (!q || text.includes(q)) &&
            (!region || u.region === region) &&
+           (!state || u.state === state) &&
            (!status || u.status === status);
   });
+}
+
+function populateStateFilter() {
+  const sel = document.getElementById('filter-state');
+  const current = sel.value;
+  const states = [...new Set(universities.map(u => u.state).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">All States</option>' +
+    states.map(s => `<option value="${s}"${s===current?' selected':''}>${s}</option>`).join('');
 }
 
 function getSorted(list) {
@@ -335,6 +350,7 @@ function renderTable() {
       <td>${deadlineCellHTML(u.fallFinal)}</td>
       <td>${deadlineCellHTML(u.spring)}</td>
       <td><select class="status-select" data-id="${u.id}">${['Not Started','In Progress','Submitted','Accepted','Rejected','Waitlisted'].map(s=>`<option${u.status===s?' selected':''}>${s}</option>`).join('')}</select></td>
+      <td style="text-align:center;">${u.appFee ? `<b>$${u.appFee}</b>` : '<span style="color:#ccc">—</span>'}</td>
       <td style="font-size:12px;">${u.contact ? `<a href="mailto:${u.contact}" style="color:#1a5c8b;">${u.contact}</a>` : ''}<br><span style="color:#888">${u.contactName||''}</span></td>
       <td>${u.portal ? `<a class="portal-link" href="${u.portal}" target="_blank">Open ↗</a>` : ''}</td>
       <td><button class="action-btn" title="Notes" data-notes="${u.id}">📝${u.notes ? '●' : ''}</button></td>
@@ -403,6 +419,7 @@ function renderDeadlines() {
 }
 
 function render() {
+  populateStateFilter();
   if (deadlineViewActive) { renderDeadlines(); }
   else { renderTable(); }
 }
@@ -422,6 +439,7 @@ document.querySelectorAll('#table-view th[data-col]').forEach(th => {
 // ---- FILTERS ----
 document.getElementById('search').addEventListener('input', render);
 document.getElementById('filter-region').addEventListener('change', render);
+document.getElementById('filter-state').addEventListener('change', render);
 document.getElementById('filter-status').addEventListener('change', render);
 
 // ---- DEADLINE TOGGLE ----
@@ -447,7 +465,7 @@ document.getElementById('btn-cancel').addEventListener('click', () => {
 });
 
 function clearForm() {
-  ['f-name','f-state','f-portal','f-contact','f-contact-name','f-notes','f-fall-priority','f-fall-final','f-spring'].forEach(id => {
+  ['f-name','f-state','f-portal','f-contact','f-contact-name','f-notes','f-fall-priority','f-fall-final','f-spring','f-appfee'].forEach(id => {
     document.getElementById(id).value = '';
   });
   document.getElementById('f-region').value = 'Eastern';
@@ -469,6 +487,7 @@ document.getElementById('btn-save').addEventListener('click', () => {
     status: document.getElementById('f-status').value,
     contact: document.getElementById('f-contact').value.trim(),
     contactName: document.getElementById('f-contact-name').value.trim(),
+    appFee: document.getElementById('f-appfee').value.trim(),
     notes: document.getElementById('f-notes').value.trim(),
   };
   if (editingId) {
@@ -501,6 +520,7 @@ document.getElementById('table-body').addEventListener('click', e => {
     document.getElementById('f-status').value = u.status;
     document.getElementById('f-contact').value = u.contact;
     document.getElementById('f-contact-name').value = u.contactName;
+    document.getElementById('f-appfee').value = u.appFee || '';
     document.getElementById('f-notes').value = u.notes;
     document.getElementById('edit-indicator').textContent = `Editing: ${u.name}`;
     document.getElementById('add-form-panel').classList.add('open');
