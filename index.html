@@ -114,6 +114,11 @@
   </select>
   <button id="btn-deadline-view">📅 Deadline View</button>
   <button id="btn-add-toggle">+ Add University</button>
+
+ <!-- NEW GOOGLE CALENDAR UI -->
+  <button id="btn-gcal-auth" style="background: #db4437; border-color: #c13b2e;">🔗 Connect Calendar</button>
+  <button id="btn-gcal-sync" style="display: none; background: #0f9d58; border-color: #0b8043;">📅 Sync Deadlines</button>
+  <span id="gcal-status" style="font-size: 13px; color: #ccc;"></span>
 </header>
 
 <!-- ADD FORM -->
@@ -528,6 +533,126 @@ document.getElementById('notes-modal').addEventListener('click', e => {
 // ---- INIT ----
 load();
 render();
+ 
+ // ---- GOOGLE CALENDAR SYNC ----
+const GCAL_CLIENT_ID = '48089637458-3clqhrh18lu9p1er7m2s69aqj1s3npvb.apps.googleusercontent.com'; 
+const GCAL_API_KEY = 'AIzaSyAdgyswPLMLn6fDixL7ZuCmNHbDDtextf0';
+const GCAL_DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest';
+const GCAL_SCOPES = 'https://www.googleapis.com/auth/calendar.events';
+
+let tokenClient;
+let gapiInited = false;
+let gisInited = false;
+
+// 1. Initialize API Client
+async function initializeGapiClient() {
+  await gapi.client.init({ apiKey: GCAL_API_KEY, discoveryDocs: [GCAL_DISCOVERY_DOC] });
+  gapiInited = true;
+}
+function gapiLoaded() { gapi.load('client', initializeGapiClient); }
+
+// 2. Initialize Identity Services
+function gisLoaded() {
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GCAL_CLIENT_ID,
+    scope: GCAL_SCOPES,
+    callback: '', // defined dynamically below
+  });
+  gisInited = true;
+}
+
+// 3. Auth Button Logic
+document.getElementById('btn-gcal-auth').addEventListener('click', () => {
+  if (!gapiInited || !gisInited) { alert('Google APIs are still loading. Try again in a second.'); return; }
+  
+  tokenClient.callback = async (resp) => {
+    if (resp.error) { console.error('Auth error', resp); return; }
+    document.getElementById('btn-gcal-auth').style.display = 'none';
+    document.getElementById('btn-gcal-sync').style.display = 'inline-block';
+    document.getElementById('gcal-status').textContent = '✅ Connected';
+  };
+  
+  // Trigger auth
+  if (gapi.client.getToken() === null) {
+    tokenClient.requestAccessToken({prompt: 'consent'});
+  } else {
+    tokenClient.requestAccessToken({prompt: ''});
+  }
+});
+
+// 4. Sync Logic
+document.getElementById('btn-gcal-sync').addEventListener('click', async () => {
+  const statusSpan = document.getElementById('gcal-status');
+  statusSpan.textContent = '⏳ Syncing...';
+  
+  // Fetch previously synced events to prevent duplicates
+  let syncedRecord = JSON.parse(localStorage.getItem('gcal_sync_record') || '{}');
+  let addedCount = 0;
+  const now = new Date();
+  now.setHours(0,0,0,0);
+
+  for (const u of universities) {
+    const deadlines = [
+      { type: 'Fall Priority', date: u.fallPriority },
+      { type: 'Fall Final', date: u.fallFinal },
+      { type: 'Spring', date: u.spring }
+    ];
+
+    for (const d of deadlines) {
+      if (!d.date) continue; // Skip if no deadline
+
+      const eventDate = new Date(d.date);
+      eventDate.setHours(0,0,0,0);
+      
+      if (eventDate < now) continue; // Skip past dates
+
+      const syncKey = `${u.id}-${d.type}-${d.date}`;
+      if (syncedRecord[syncKey]) continue; // Skip if already synced
+
+      // Calculate minutes for reminders (GCal max 5 limit)
+      const daysToMins = (days) => days * 24 * 60;
+      
+      const event = {
+        summary: `[App Deadline] ${u.name} — ${d.type}`,
+        start: { date: d.date }, // All day format uses just date
+        end: { date: d.date },
+        reminders: {
+          useDefault: false,
+          overrides: [
+            { method: 'popup', minutes: daysToMins(30) },
+            { method: 'popup', minutes: daysToMins(14) },
+            { method: 'popup', minutes: daysToMins(7) },
+            { method: 'popup', minutes: daysToMins(3) },
+          ]
+        }
+      };
+
+      try {
+        await gapi.client.calendar.events.insert({
+          calendarId: 'primary',
+          resource: event
+        });
+        syncedRecord[syncKey] = true;
+        addedCount++;
+      } catch (err) {
+        console.error(`Error adding event for ${u.name}`, err);
+      }
+    }
+  }
+
+  // Save the new tracker of synced events back to localStorage
+  localStorage.setItem('gcal_sync_record', JSON.stringify(syncedRecord));
+  
+  if (addedCount > 0) {
+    statusSpan.textContent = `✅ ${addedCount} events synced`;
+  } else {
+    statusSpan.textContent = '⚠️ Already up to date';
+  }
+});
 </script>
+ 
+ <!-- GOOGLE API SCRIPTS -->
+<script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+<script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
